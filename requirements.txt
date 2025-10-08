@@ -1,0 +1,5 @@
+Flask>=2.2
+SQLAlchemy>=1.4
+pymysql            # for MySQL; OR psycopg2-binary for Postgres
+python-dotenv
+gunicorn
