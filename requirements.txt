@@ -1,6 +1,8 @@
 Flask>=2.2
-SQLAlchemy>=1.4
+Flask-SQLAlchemy>=3.0
+Flask-CORS>=4.0
 pymysql            # for MySQL; OR psycopg2-binary for Postgres
 python-dotenv
 gunicorn
 mysql-connector-python
+requests

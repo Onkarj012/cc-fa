@@ -6,6 +6,9 @@
     <title>NihongoGPT - Your Japanese Learning Assistant</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* =========================== */
+        /* KEEP ALL CSS AS-IS           */
+        /* =========================== */
         * {
             margin: 0;
             padding: 0;
@@ -153,6 +156,38 @@
         .chat-item-date {
             font-size: 0.75rem;
             color: var(--text-secondary);
+        }
+
+        .chat-item-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-item-delete {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            opacity: 0;
+            font-size: 0.875rem;
+        }
+
+        .chat-item:hover .chat-item-delete {
+            opacity: 1;
+        }
+
+        .chat-item-delete:hover {
+            color: var(--accent-red);
+            background: rgba(230, 57, 70, 0.1);
         }
 
         .content-wrapper {
@@ -620,6 +655,11 @@
   </div>
 
   <script>
+    /* ============================ */
+    /* KEEP ALL EXISTING JS AS-IS   */
+    /* ADD FETCH TO BACKEND (DB)    */
+    /* ============================ */
+
     const themeToggle = document.getElementById('themeToggle');
     const themeIcon = document.getElementById('themeIcon');
     const themeText = document.getElementById('themeText');
@@ -663,18 +703,28 @@
       createNewChat();
     });
 
-    function createNewChat() {
-      const chatId = Date.now();
-      const chat = {
-        id: chatId,
-        title: 'New Chat',
-        date: new Date().toLocaleDateString(),
-        messages: []
-      };
-      chats.unshift(chat);
-      currentChatId = chatId;
-      renderChatHistory();
-      clearChat();
+    async function createNewChat() {
+      try {
+        const response = await fetch("/api/chats", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({title: "New Chat"})
+        });
+        const data = await response.json();
+        const chatId = data.id;
+        const chat = {
+          id: chatId,
+          title: data.title,
+          date: new Date(data.created_at).toLocaleDateString(),
+          messages: []
+        };
+        chats.unshift(chat);
+        currentChatId = chatId;
+        renderChatHistory();
+        clearChat();
+      } catch (error) {
+        console.error("Error creating chat:", error);
+      }
     }
 
     function renderChatHistory() {
@@ -686,26 +736,63 @@
           chatItem.classList.add('active');
         }
         chatItem.innerHTML = `
-          <div class="chat-item-title">${chat.title}</div>
-          <div class="chat-item-date">${chat.date}</div>
+          <div class="chat-item-content">
+            <div class="chat-item-info">
+              <div class="chat-item-title">${chat.title}</div>
+              <div class="chat-item-date">${chat.date}</div>
+            </div>
+            <button class="chat-item-delete" onclick="deleteChat(event, ${chat.id})">×</button>
+          </div>
         `;
-        chatItem.addEventListener('click', () => {
-          loadChat(chat.id);
+        chatItem.addEventListener('click', (e) => {
+          // Don't load chat if delete button was clicked
+          if (!e.target.classList.contains('chat-item-delete')) {
+            loadChat(chat.id);
+          }
         });
         chatHistory.appendChild(chatItem);
       });
     }
 
-    function loadChat(chatId) {
+    async function loadChat(chatId) {
       currentChatId = chatId;
-      const chat = chats.find(c => c.id === chatId);
-      if (chat) {
-        clearChat();
-        chat.messages.forEach(msg => {
-          addMessage(msg.content, msg.type, false);
-        });
-      }
+      const res = await fetch(`/api/chat/${chatId}`);
+      const data = await res.json();
+      clearChat();
+      data.messages.forEach(msg => addMessage(msg.content, msg.type, false));
       renderChatHistory();
+    }
+
+    async function deleteChat(event, chatId) {
+      event.stopPropagation(); // Prevent chat loading
+      
+      if (confirm('Are you sure you want to delete this chat? This action cannot be undone.')) {
+        try {
+          const response = await fetch(`/api/chat/${chatId}`, {
+            method: 'DELETE'
+          });
+          
+          if (response.ok) {
+            // Remove from local chats array
+            chats = chats.filter(chat => chat.id !== chatId);
+            
+            // If we deleted the current chat, clear the chat area
+            if (currentChatId === chatId) {
+              currentChatId = null;
+              clearChat();
+            }
+            
+            // Refresh the chat history
+            renderChatHistory();
+          } else {
+            console.error('Failed to delete chat');
+            alert('Failed to delete chat. Please try again.');
+          }
+        } catch (error) {
+          console.error('Error deleting chat:', error);
+          alert('Error deleting chat. Please try again.');
+        }
+      }
     }
 
     function clearChat() {
@@ -724,18 +811,34 @@
       `;
     }
 
-    function saveMessage(content, type) {
-      if (currentChatId) {
-        const chat = chats.find(c => c.id === currentChatId);
-        if (chat) {
-          chat.messages.push({ content, type });
-          if (chat.title === 'New Chat' && type === 'user') {
-            chat.title = content.substring(0, 30) + (content.length > 30 ? '...' : '');
-            renderChatHistory();
-          }
-        }
+    async function saveMessage(content, type) {
+      if (!currentChatId) return;
+      const response = await fetch("/api/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: currentChatId, content, type })
+      });
+      
+      // If this is the first user message, refresh chat history to show updated title
+      if (type === "user") {
+        await fetchChats();
       }
     }
+
+    async function fetchChats() {
+      const res = await fetch("/api/chats");
+      const data = await res.json();
+      chats = data.map(c => ({
+        id: c.id, 
+        title: c.title, 
+        date: new Date(c.created_at).toLocaleDateString(),
+        messages: []
+      }));
+      renderChatHistory();
+    }
+
+    // Initialize by fetching existing chats
+    fetchChats();
 
     messageInput.addEventListener('input', function () {
       this.style.height = 'auto';
@@ -762,30 +865,33 @@
       sendMessage();
     }
 
-    function sendMessage() {
+    async function sendMessage() {
       const message = messageInput.value.trim();
       if (!message) return;
 
       if (!currentChatId) {
-        createNewChat();
+        await createNewChat();
       }
 
-      addMessage(message, 'user', true);
+      addMessage(message, 'user', false);
       messageInput.value = '';
       messageInput.style.height = 'auto';
 
-      setTimeout(() => {
-        const responses = [
-          "Great! Let's learn **Hiragana** together! 🎌\n\nHiragana is one of the basic Japanese writing systems. Here are the first 5 characters:\n\n<span class='japanese-text'>あ (a) - い (i) - う (u) - え (e) - お (o)</span>\n\nThese are the vowels in Japanese. Practice writing each one 10 times. Would you like to continue with the next row?",
-          "Excellent question! Here's a fundamental **grammar pattern**:\n\n**Subject + は (wa) + Object + です (desu)**\n\nExample:\n<span class='japanese-text'>私は学生です。</span>\n(Watashi wa gakusei desu)\n*I am a student.*\n\nThe particle **は (wa)** marks the topic, and **です (desu)** is the polite copula meaning 'to be'. Try making your own sentence!",
-          "Let me teach you some essential **Kanji**! 📝\n\n<span class='japanese-text'>日 (にち/ひ) - sun, day</span>\n<span class='japanese-text'>本 (ほん) - book, origin</span>\n<span class='japanese-text'>人 (じん/ひと) - person</span>\n\nCombined: <span class='japanese-text'>日本人</span> (nihonjin) = Japanese person\n\nNotice how kanji can have multiple readings? This is called *on'yomi* and *kun'yomi*. Would you like to learn more kanji?",
-          "Let's practice some **common phrases**! 🗣️\n\n<span class='japanese-text'>おはようございます</span>\n*(Ohayou gozaimasu)* - Good morning\n\n<span class='japanese-text'>ありがとうございます</span>\n*(Arigatou gozaimasu)* - Thank you\n\n<span class='japanese-text'>すみません</span>\n*(Sumimasen)* - Excuse me / Sorry\n\n> **Tip:** Adding *gozaimasu* makes phrases more polite!\n\nTry using these in your daily life. Which phrase would you like to practice?",
-          "Here's a useful **particle lesson**: ✨\n\nParticles are small words that show the grammatical function of words:\n\n- **を (wo/o)** - marks direct object\n- **に (ni)** - marks destination/time\n- **で (de)** - marks location of action\n- **と (to)** - means 'and' or 'with'\n\nExample:\n<span class='japanese-text'>私は公園で友達と本を読みます。</span>\n*(I read books with friends at the park.)*\n\nParticles are crucial for Japanese grammar. Shall we practice with some exercises?"
-        ];
-
-        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-        addMessage(randomResponse, 'ai', true);
-      }, 800);
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            message: message,
+            chat_id: currentChatId
+          })
+        });
+        const data = await response.json();
+        addMessage(data.reply, 'ai', false);
+      } catch (error) {
+        console.error("Error sending message:", error);
+        addMessage("Sorry, I encountered an error. Please try again.", 'ai', false);
+      }
     }
 
     function addMessage(content, type, shouldSave) {
@@ -807,9 +913,7 @@
       chatMessages.appendChild(messageDiv);
       chatMessages.scrollTop = chatMessages.scrollHeight;
 
-      if (shouldSave) {
-        saveMessage(content, type);
-      }
+      if (shouldSave) saveMessage(content, type);
     }
 
     function escapeHTML(str) {
@@ -832,8 +936,6 @@
         .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>')
         .replace(/\n/g, '<br>');
     }
-
-    createNewChat();
   </script>
 </body>
 </html>
