@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NihongoGPT - Your Japanese Learning Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-bg: #ffffff;
+            --secondary-bg: #f8f9fa;
+            --chat-bg: #fafbfc;
+            --border-color: #e1e8ed;
+            --text-primary: #1a1a1a;
+            --text-secondary: #6b7280;
+            --accent-red: #e63946;
+            --accent-blue: #457b9d;
+            --accent-gold: #f4a261;
+            --accent-teal: #2a9d8f;
+            --user-bubble: #457b9d;
+            --ai-bubble: #ffffff;
+            --shadow-light: 0 2px 8px rgba(0,0,0,0.08);
+            --shadow-medium: 0 4px 16px rgba(0,0,0,0.12);
+            --border-radius: 12px;
+            --panel-border: 2px solid var(--border-color);
+        }
+
+        [data-theme="dark"] {
+            --primary-bg: #1a1a1a;
+            --secondary-bg: #2d2d2d;
+            --chat-bg: #242424;
+            --border-color: #404040;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --accent-red: #ff6b7a;
+            --accent-blue: #6fa8dc;
+            --accent-gold: #ffb366;
+            --accent-teal: #4ecdc4;
+            --user-bubble: #5a8db8;
+            --ai-bubble: #2d2d2d;
+            --shadow-light: 0 2px 8px rgba(0,0,0,0.3);
+            --shadow-medium: 0 4px 16px rgba(0,0,0,0.4);
+            --panel-border: 2px solid var(--border-color);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: var(--secondary-bg);
+            border-right: var(--panel-border);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            border-right: none;
+        }
+
+        .sidebar-header {
+            padding: 1rem 1.5rem;
+            border-bottom: var(--panel-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-title {
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .new-chat-btn {
+            background: linear-gradient(135deg, var(--accent-red), var(--accent-blue));
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
+        .new-chat-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .chat-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+
+        .chat-item {
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+            background: var(--primary-bg);
+        }
+
+        .chat-item:hover {
+            border-color: var(--accent-blue);
+            transform: translateX(4px);
+        }
+
+        .chat-item.active {
+            border-color: var(--accent-red);
+            background: var(--chat-bg);
+        }
+
+        .chat-item-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-item-date {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .content-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .toggle-sidebar-btn {
+            background: none;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            margin-right: 0.5rem;
+        }
+
+        .toggle-sidebar-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
+
+        .header {
+            background: var(--secondary-bg);
+            border-bottom: var(--panel-border);
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-light);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-red), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .logo-japanese {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 2px solid var(--border-color);
+            border-radius: 50px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            background: var(--chat-bg);
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 1rem 1.25rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-light);
+            position: relative;
+            border: var(--panel-border);
+        }
+
+        .message.user .message-bubble {
+            background: var(--user-bubble);
+            color: white;
+            border-top-right-radius: 4px;
+        }
+
+        .message.ai .message-bubble {
+            background: var(--ai-bubble);
+            color: var(--text-primary);
+            border-top-left-radius: 4px;
+            border-left: 4px solid var(--accent-red);
+        }
+
+        .message-content {
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .message-content h1, .message-content h2, .message-content h3 {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin-bottom: 0.5rem;
+            color: var(--accent-blue);
+        }
+
+        .message-content h1 { font-size: 1.25rem; }
+        .message-content h2 { font-size: 1.125rem; }
+        .message-content h3 { font-size: 1rem; }
+
+        .message-content ul, .message-content ol {
+            margin-left: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .message-content li {
+            margin-bottom: 0.25rem;
+        }
+
+        .message-content a {
+            color: var(--accent-blue);
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .message-content a:hover {
+            border-bottom-color: var(--accent-blue);
+        }
+
+        .message-content code {
+            background: var(--secondary-bg);
+            padding: 0.125rem 0.25rem;
+            border-radius: 4px;
+            font-family: 'Noto Sans JP', 'SF Mono', monospace;
+            font-size: 0.875rem;
+        }
+
+        .message-content pre {
+            background: var(--secondary-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .message-content blockquote {
+            border-left: 4px solid var(--accent-gold);
+            padding-left: 1rem;
+            margin: 0.5rem 0;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .japanese-text {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--accent-red);
+        }
+
+        .input-area {
+            background: var(--secondary-bg);
+            border-top: var(--panel-border);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-medium);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 1rem;
+            max-width: 100%;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 1rem 1.25rem;
+            border: 2px solid var(--border-color);
+            border-radius: 50px;
+            background: var(--primary-bg);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s ease;
+            resize: none;
+            min-height: 48px;
+            max-height: 120px;
+        }
+
+        .message-input:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(69, 123, 157, 0.1);
+        }
+
+        .message-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .send-button {
+            background: linear-gradient(135deg, var(--accent-red), var(--accent-blue));
+            border: none;
+            border-radius: 50px;
+            padding: 0.75rem 1.5rem;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+            min-width: 80px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-button:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .send-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-history::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .chat-history::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-history::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                left: 0;
+                top: 73px;
+                height: calc(100vh - 73px);
+                z-index: 50;
+                box-shadow: var(--shadow-medium);
+            }
+
+            .sidebar.collapsed {
+                left: -260px;
+            }
+
+            .header {
+                padding: 1rem;
+            }
+            
+            .logo {
+                font-size: 1.25rem;
+            }
+
+            .logo-japanese {
+                font-size: 1rem;
+            }
+            
+            .chat-messages {
+                padding: 1rem;
+            }
+            
+            .message-bubble {
+                max-width: 85%;
+                padding: 0.875rem 1rem;
+            }
+            
+            .input-area {
+                padding: 1rem;
+            }
+            
+            .input-container {
+                gap: 0.75rem;
+            }
+            
+            .message-input {
+                padding: 0.875rem 1rem;
+                font-size: 0.9rem;
+            }
+            
+            .send-button {
+                padding: 0.75rem 1.25rem;
+                min-width: 70px;
+            }
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: var(--secondary-bg);
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: var(--accent-blue);
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-red);
+        }
+
+        .welcome-message {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        .welcome-title {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--accent-red), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-subtitle {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        .welcome-japanese {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 2rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .quick-starts {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+
+        .quick-start-btn {
+            background: var(--secondary-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 50px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .quick-start-btn:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-light);
+        }
+    </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-container">
+      <button class="toggle-sidebar-btn" id="toggleSidebar">☰</button>
+      <h1 class="logo">NihongoGPT</h1>
+      <span class="logo-japanese">日本語</span>
+    </div>
+    <button class="theme-toggle" id="themeToggle">
+      <span id="themeIcon">🌙</span>
+      <span id="themeText">Dark</span>
+    </button>
+  </div>
+
+  <div class="main-container">
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Chat History</span>
+      </div>
+      <div style="padding: 0.5rem;">
+        <button class="new-chat-btn" id="newChatBtn">+ New Chat</button>
+      </div>
+      <div class="chat-history" id="chatHistory"></div>
+    </div>
+
+    <div class="content-wrapper">
+      <div class="chat-container">
+        <div class="chat-messages" id="chatMessages">
+          <div class="welcome-message">
+            <div class="welcome-japanese">ようこそ！</div>
+            <h2 class="welcome-title">Welcome to NihongoGPT</h2>
+            <p class="welcome-subtitle">Your personal Japanese learning assistant is here to help you master vocabulary, grammar, kanji, and conversation skills!</p>
+            <div class="quick-starts">
+              <button class="quick-start-btn" onclick="quickStart('hiragana')">Learn Hiragana</button>
+              <button class="quick-start-btn" onclick="quickStart('grammar')">Grammar Basics</button>
+              <button class="quick-start-btn" onclick="quickStart('kanji')">Study Kanji</button>
+              <button class="quick-start-btn" onclick="quickStart('conversation')">Practice Conversation</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-area">
+          <div class="input-container">
+            <textarea class="message-input" id="messageInput" placeholder="Ask me anything about Japanese..." rows="1"></textarea>
+            <button class="send-button" id="sendButton">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeText = document.getElementById('themeText');
+    const body = document.body;
+    const toggleSidebar = document.getElementById('toggleSidebar');
+    const sidebar = document.getElementById('sidebar');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const chatHistory = document.getElementById('chatHistory');
+    const chatMessages = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+
+    let isDark = false;
+    let sidebarOpen = true;
+    let chats = [];
+    let currentChatId = null;
+
+    themeToggle.addEventListener('click', () => {
+      isDark = !isDark;
+      if (isDark) {
+        body.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'Light';
+      } else {
+        body.removeAttribute('data-theme');
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'Dark';
+      }
+    });
+
+    toggleSidebar.addEventListener('click', () => {
+      sidebarOpen = !sidebarOpen;
+      if (sidebarOpen) {
+        sidebar.classList.remove('collapsed');
+      } else {
+        sidebar.classList.add('collapsed');
+      }
+    });
+
+    newChatBtn.addEventListener('click', () => {
+      createNewChat();
+    });
+
+    function createNewChat() {
+      const chatId = Date.now();
+      const chat = {
+        id: chatId,
+        title: 'New Chat',
+        date: new Date().toLocaleDateString(),
+        messages: []
+      };
+      chats.unshift(chat);
+      currentChatId = chatId;
+      renderChatHistory();
+      clearChat();
+    }
+
+    function renderChatHistory() {
+      chatHistory.innerHTML = '';
+      chats.forEach(chat => {
+        const chatItem = document.createElement('div');
+        chatItem.className = 'chat-item';
+        if (chat.id === currentChatId) {
+          chatItem.classList.add('active');
+        }
+        chatItem.innerHTML = `
+          <div class="chat-item-title">${chat.title}</div>
+          <div class="chat-item-date">${chat.date}</div>
+        `;
+        chatItem.addEventListener('click', () => {
+          loadChat(chat.id);
+        });
+        chatHistory.appendChild(chatItem);
+      });
+    }
+
+    function loadChat(chatId) {
+      currentChatId = chatId;
+      const chat = chats.find(c => c.id === chatId);
+      if (chat) {
+        clearChat();
+        chat.messages.forEach(msg => {
+          addMessage(msg.content, msg.type, false);
+        });
+      }
+      renderChatHistory();
+    }
+
+    function clearChat() {
+      chatMessages.innerHTML = `
+        <div class="welcome-message">
+          <div class="welcome-japanese">ようこそ！</div>
+          <h2 class="welcome-title">Welcome to NihongoGPT</h2>
+          <p class="welcome-subtitle">Your personal Japanese learning assistant is here to help you master vocabulary, grammar, kanji, and conversation skills!</p>
+          <div class="quick-starts">
+            <button class="quick-start-btn" onclick="quickStart('hiragana')">Learn Hiragana</button>
+            <button class="quick-start-btn" onclick="quickStart('grammar')">Grammar Basics</button>
+            <button class="quick-start-btn" onclick="quickStart('kanji')">Study Kanji</button>
+            <button class="quick-start-btn" onclick="quickStart('conversation')">Practice Conversation</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function saveMessage(content, type) {
+      if (currentChatId) {
+        const chat = chats.find(c => c.id === currentChatId);
+        if (chat) {
+          chat.messages.push({ content, type });
+          if (chat.title === 'New Chat' && type === 'user') {
+            chat.title = content.substring(0, 30) + (content.length > 30 ? '...' : '');
+            renderChatHistory();
+          }
+        }
+      }
+    }
+
+    messageInput.addEventListener('input', function () {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    messageInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    sendButton.addEventListener('click', sendMessage);
+
+    function quickStart(topic) {
+      const messages = {
+        hiragana: "I want to learn hiragana",
+        grammar: "Can you teach me basic Japanese grammar?",
+        kanji: "Help me study kanji",
+        conversation: "I want to practice Japanese conversation"
+      };
+      messageInput.value = messages[topic];
+      sendMessage();
+    }
+
+    function sendMessage() {
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      if (!currentChatId) {
+        createNewChat();
+      }
+
+      addMessage(message, 'user', true);
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+
+      setTimeout(() => {
+        const responses = [
+          "Great! Let's learn **Hiragana** together! 🎌\n\nHiragana is one of the basic Japanese writing systems. Here are the first 5 characters:\n\n<span class='japanese-text'>あ (a) - い (i) - う (u) - え (e) - お (o)</span>\n\nThese are the vowels in Japanese. Practice writing each one 10 times. Would you like to continue with the next row?",
+          "Excellent question! Here's a fundamental **grammar pattern**:\n\n**Subject + は (wa) + Object + です (desu)**\n\nExample:\n<span class='japanese-text'>私は学生です。</span>\n(Watashi wa gakusei desu)\n*I am a student.*\n\nThe particle **は (wa)** marks the topic, and **です (desu)** is the polite copula meaning 'to be'. Try making your own sentence!",
+          "Let me teach you some essential **Kanji**! 📝\n\n<span class='japanese-text'>日 (にち/ひ) - sun, day</span>\n<span class='japanese-text'>本 (ほん) - book, origin</span>\n<span class='japanese-text'>人 (じん/ひと) - person</span>\n\nCombined: <span class='japanese-text'>日本人</span> (nihonjin) = Japanese person\n\nNotice how kanji can have multiple readings? This is called *on'yomi* and *kun'yomi*. Would you like to learn more kanji?",
+          "Let's practice some **common phrases**! 🗣️\n\n<span class='japanese-text'>おはようございます</span>\n*(Ohayou gozaimasu)* - Good morning\n\n<span class='japanese-text'>ありがとうございます</span>\n*(Arigatou gozaimasu)* - Thank you\n\n<span class='japanese-text'>すみません</span>\n*(Sumimasen)* - Excuse me / Sorry\n\n> **Tip:** Adding *gozaimasu* makes phrases more polite!\n\nTry using these in your daily life. Which phrase would you like to practice?",
+          "Here's a useful **particle lesson**: ✨\n\nParticles are small words that show the grammatical function of words:\n\n- **を (wo/o)** - marks direct object\n- **に (ni)** - marks destination/time\n- **で (de)** - marks location of action\n- **と (to)** - means 'and' or 'with'\n\nExample:\n<span class='japanese-text'>私は公園で友達と本を読みます。</span>\n*(I read books with friends at the park.)*\n\nParticles are crucial for Japanese grammar. Shall we practice with some exercises?"
+        ];
+
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+        addMessage(randomResponse, 'ai', true);
+      }, 800);
+    }
+
+    function addMessage(content, type, shouldSave) {
+      const welcomeMessage = document.querySelector('.welcome-message');
+      if (welcomeMessage) welcomeMessage.remove();
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+
+      const messageContent = document.createElement('div');
+      messageContent.className = 'message-content';
+      messageContent.innerHTML = (type === 'ai') ? parseMarkdown(content) : escapeHTML(content);
+
+      bubble.appendChild(messageContent);
+      messageDiv.appendChild(bubble);
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      if (shouldSave) {
+        saveMessage(content, type);
+      }
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[c]));
+    }
+
+    function parseMarkdown(text) {
+      return text
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+        .replace(/(^|\n)- (.*?)(?=\n|$)/g, '$1<li>$2</li>')
+        .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
+        .replace(/^> (.*$)/gm, '<blockquote>$1</blockquote>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>')
+        .replace(/\n/g, '<br>');
+    }
+
+    createNewChat();
+  </script>
+</body>
+</html>
