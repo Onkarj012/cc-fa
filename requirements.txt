@@ -3,3 +3,4 @@ SQLAlchemy>=1.4
 pymysql            # for MySQL; OR psycopg2-binary for Postgres
 python-dotenv
 gunicorn
+mysql-connector-python
