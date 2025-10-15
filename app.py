@@ -59,8 +59,9 @@ def save_message():
     if not content or not msg_type:
         return jsonify({"error": "Missing content or type"}), 400
 
+    # If no chat exists, create a new one
     if not chat_id:
-        chat = Chat(title="Japanese Learning Chat")
+        chat = Chat(title="New Chat")
         db.session.add(chat)
         db.session.commit()
         chat_id = chat.id
@@ -69,20 +70,60 @@ def save_message():
         if not chat:
             return jsonify({"error": "Chat not found"}), 404
 
+    # Save the message
     message = Message(chat_id=chat_id, content=content, type=msg_type)
     db.session.add(message)
     db.session.commit()
-    # Update chat title if it's the first user message
+
+    # Generate a smart title if it's the first user message
     if msg_type == "user" and chat.title == "New Chat":
-        title = content[:30] + ("..." if len(content) > 30 else "")
-        chat.title = title
+        if DEMO_MODE:
+            # Simple fallback title
+            chat.title = random.choice([
+                "Basic Greetings", 
+                "First Japanese Chat", 
+                "Learning New Words", 
+                "Daily Conversation"
+            ])
+        else:
+            try:
+                title_prompt = (
+                    "You are a helpful assistant that generates short, meaningful titles "
+                    "for chat sessions. Create a short English title (max 6 words) for a "
+                    f"Japanese learning conversation based on this user message:\n\n"
+                    f"\"{content}\"\n\n"
+                    "Return only the title, no punctuation or quotes."
+                )
+                payload = {
+                    "model": CHARACTER_MODEL,
+                    "messages": [
+                        {"role": "system", "content": title_prompt}
+                    ],
+                    "temperature": 0.5,
+                    "max_tokens": 20
+                }
+                headers = {
+                    "Authorization": f"Bearer {CHUTES_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                resp = requests.post(CHUTES_BASE_URL, headers=headers, json=payload, timeout=15)
+                if resp.status_code == 200:
+                    new_title = resp.json()["choices"][0]["message"]["content"].strip()
+                    chat.title = new_title if new_title else content[:30]
+                else:
+                    chat.title = content[:30]  # fallback
+            except requests.exceptions.RequestException:
+                chat.title = content[:30]
+
         db.session.commit()
 
     return jsonify({
         "chat_id": chat_id,
         "message_id": message.id,
-        "timestamp": message.timestamp.isoformat()
+        "timestamp": message.timestamp.isoformat(),
+        "chat_title": chat.title
     })
+
 
 @app.route("/api/chats", methods=["GET", "POST"])
 def chats():
@@ -139,10 +180,43 @@ def japanese_chat():
         ])
     else:
         system_prompt = (
-            "You are a friendly Japanese language tutor. "
-            "Answer in simple Japanese, provide English translations, "
-            "and give explanations when appropriate."
+            "You are a warm, patient **Japanese conversation tutor** for complete beginners (JLPT N5 level).\n\n"
+            "📋 **Core Rules (MUST follow every time):**\n"
+            "1. **ONLY use hiragana and katakana** - NEVER use kanji\n"
+            "2. Use simple, natural **です・ます form** (polite Japanese)\n"
+            "3. Limit vocabulary to **JLPT N5 basic words** (~800 most common words)\n"
+            "4. Keep responses **2-4 sentences maximum** in Japanese\n\n"
+            
+            "✅ **Response Structure (use this format):**\n"
+            "```\n"
+            "[Japanese text in hiragana/katakana]\n"
+            "English: [Natural English translation]\n"
+            "💡 [ONE key learning point - word meaning OR grammar pattern]\n"
+            "```\n\n"
+            
+            "🎯 **Your Teaching Style:**\n"
+            "- Speak like a friendly language partner, not a formal teacher\n"
+            "- When learner makes mistakes: gently show the correct version + brief reason\n"
+            "- Give lots of encouragement: すごい！、いいですね！、よくできました！\n"
+            "- Ask simple follow-up questions to keep conversation flowing\n"
+            "- Focus on ONE new word or grammar point per message\n\n"
+            
+            "🚫 **What NOT to do:**\n"
+            "- Don't write long explanations (keep it under 30 words)\n"
+            "- Don't introduce multiple new concepts at once\n"
+            "- Don't use complex grammar or advanced vocabulary\n"
+            "- Don't overwhelm with too much information\n\n"
+            
+            "💬 **Example Response:**\n"
+            "こんにちは！きょうは げんきですか？\n"
+            "English: Hello! Are you well today?\n"
+            "💡 「げんき」means healthy/energetic - a common way to ask how someone is feeling.\n\n"
+            
+            "Remember: You're helping someone take their very first steps in Japanese. Keep it simple, natural, and encouraging! 🌸"
         )
+
+
+
         payload = {
             "model": CHARACTER_MODEL,
             "messages": [
